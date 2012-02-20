@@ -7,6 +7,7 @@ import ctypes
 import nessdb_data_structure as nessds
 
 _nessdb_library=ctypes.cdll.LoadLibrary("libnessdb.so")
+_libc_library=ctypes.cdll.LoadLibrary("/usr/lib/libSystem.B.dylib")
 
 class NessDB(object):
 
@@ -27,8 +28,8 @@ class NessDB(object):
                                      ctypes.byref(ret_slice))
         if retv == 1:
             d=ctypes.cast(ret_slice.data,ctypes.c_char_p)
-            #TODO free d!!!
             ret = str(d.value)
+            _libc_library.free(d)
             return ret
         else:
             return None
