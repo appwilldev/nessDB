@@ -4,6 +4,7 @@
 .*.swp
 *.a
 *.so
+*.pyc
 ndbs/*
 db-bench
 db-server
