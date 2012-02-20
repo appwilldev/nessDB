@@ -8,6 +8,8 @@ endif
 CC = gcc
 CFLAGS =  -c -std=c99 -Wall  $(DEBUG)	
 
+so:CFLAGS += -shared -fPIC
+
 LIB_OBJS = \
 	./engine/meta.o		\
 	./engine/sst.o		\
@@ -31,8 +33,10 @@ SVR_OBJS = \
 	./server/zmalloc.o \
 
 LIBRARY = libnessdb.a
+DY_LIBRARY = libnessdb.so
 
 all: $(LIBRARY)
+so: $(DY_LIBRARY)
 
 clean:
 	-rm -f $(LIBRARY)  
@@ -48,6 +52,11 @@ cleandb:
 $(LIBRARY): $(LIB_OBJS)
 	rm -f $@
 	$(AR) -rs $@ $(LIB_OBJS)
+
+$(DY_LIBRARY):$(LIB_OBJS)
+	$(echo $@)
+	rm -f $@
+	$(CC) -shared -fPIC -o $@ $(LIB_OBJS)
 
 db-bench: bench/db-bench.o $(LIB_OBJS)
 	$(CC) -pthread  bench/db-bench.o $(LIB_OBJS)  -o $@
