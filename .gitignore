@@ -4,9 +4,13 @@
 .*.swp
 *.a
 *.so
-*.pyc
 ndbs/*
 db-bench
 db-server
 core
 *.event
+
+#pysrc
+*.pyc
+pysrc/build
+test.db
