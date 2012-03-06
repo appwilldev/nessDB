@@ -11,8 +11,13 @@ from distutils.core import setup
 
 here_path=os.path.abspath(os.path.dirname(__file__))
 
+def pypy():
+    import sys
+    if not '__pypy__' in sys.builtin_module_names:
+        print "Warnning: Your are installing py-NessDB implemented with ctypes!"
+
 def main():
-    parent_dir=os.path.dirname(here_path)
+    parent_dir=os.path.dirname(os.path.dirname(here_path))
     cmd="cd %s;make clean;make so" % parent_dir
     os.system(cmd)
     setup(name='nessdb',
@@ -28,5 +33,6 @@ def main():
           )
 
 if __name__=='__main__':
+    pypy()
     main()
     
