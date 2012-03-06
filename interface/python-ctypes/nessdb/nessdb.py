@@ -20,6 +20,8 @@ else:
     raise Exception("don't kown how to load libc dynamic library")
 
 _libc_library.free.argtypes=[ctypes.c_void_p]
+_nessdb_library.db_open.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_int]
+_nessdb_library.db_open.restype = ctypes.c_void_p
 _nessdb_library.db_add.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p]
 _nessdb_library.db_get.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p]
 _nessdb_library.db_remove.argtypes=[ctypes.c_void_p,ctypes.c_void_p]
@@ -27,11 +29,8 @@ _nessdb_library.db_close.argtypes=[ctypes.c_void_p]
 
 class NessDB(object):
 
-    def __init__(self,path,bufferpool=1024*1024*512,tolog=0):
-        self.db_open=_nessdb_library.db_open
-        self.db_open.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_int]
-        self.db_open.restype = ctypes.c_void_p
-        self.db=self.db_open(bufferpool,path,tolog)
+    def __init__(self,path,bufferpool=1024*1024*512,is_log_recovery=1):
+        self.db=_nessdb_library.db_open(bufferpool,path,is_log_recovery)
         self.db=ctypes.cast(self.db,ctypes.c_void_p)
         
     def db_add(self,key,value):
