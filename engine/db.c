@@ -10,26 +10,28 @@
 #include <string.h>
 #include <assert.h>
 
-#include "llru.h"
 #include "db.h"
 #include "debug.h"
+#include "util.h"
 
 #define DB "ness"
 #define DB_VERSION "1.8.1"
-#define LIST_SIZE	(5000000)
 
-
-struct nessdb *db_open(size_t bufferpool_size, const char *basedir, int tolog)
+struct nessdb *db_open(size_t bufferpool_size, const char *basedir, int is_log_recovery)
 {
+	char buff_dir[FILE_PATH_SIZE];
 	struct nessdb *db;
-	 	
+
 	db = malloc(sizeof(struct nessdb));
-	db->idx = index_new(basedir, DB, LIST_SIZE, tolog);
 	db->lru = llru_new(bufferpool_size);
 	db->buf = buffer_new(1024);
 	db->start_time = time(NULL);
 	db->lru_cached = 0;
 	db->lru_missing = 0;
+
+	memset(buff_dir, FILE_PATH_SIZE, 0);
+	snprintf(buff_dir, FILE_PATH_SIZE, "%s/ndbs", basedir);
+	db->idx = index_new(buff_dir, DB, MTBL_MAX_COUNT, is_log_recovery); 
 
 	return db;
 }
@@ -73,6 +75,7 @@ int db_exists(struct nessdb *db, struct slice *sk)
 {
 	struct slice sv;
 	int ret = index_get(db->idx, sk, &sv);
+
 	if (ret == 1) {
 		free(sv.data);
 		return 1;
@@ -88,6 +91,7 @@ void db_remove(struct nessdb *db, struct slice *sk)
 
 char *db_info(struct nessdb *db)
 {
+	int arch_bits = (sizeof(long) == 8) ? 64 : 32;
 	time_t uptime = time(NULL) - db->start_time;
 	int upday = uptime / (3600 * 24);
 
@@ -97,6 +101,7 @@ char *db_info(struct nessdb *db)
 	int total_lru_cached_count = db->lru_cached;
 	int total_lru_missing_count = db->lru_missing;
 	int total_memtable_count = db->idx->list->count;
+	uint64_t total_count = index_allcount(db->idx);
 	int total_bg_merge_count = db->idx->bg_merge_count;
 
 	int total_lru_memory_usage = (db->lru->level_new.used_size + db->lru->level_old.used_size) / (1024 * 1024);
@@ -104,11 +109,11 @@ char *db_info(struct nessdb *db)
 	int total_lru_cold_memory_usage = db->lru->level_old.used_size / (1024 * 1024);
 	int max_allow_lru_memory_usage = (db->lru->level_old.allow_size + db->lru->level_new.allow_size) / (1024 * 1024);
 
-
 	buffer_clear(db->buf);
 	buffer_scatf(db->buf, 
 			"# Server\r\n"
 			"nessDB_version:%s\r\n"
+			"arch_bits:%d\r\n"
 			"gcc_version:%d.%d.%d\r\n"
 			"process_id:%ld\r\n"
 			"uptime_in_seconds:%d\r\n"
@@ -121,6 +126,7 @@ char *db_info(struct nessdb *db)
 			"total_lru_hits_count:%d\r\n"
 			"total_lru_missing_count:%d\r\n"
 			"total_memtable_count:%d\r\n"
+			"total_count(in sst):%llu\r\n"
 			"total_bg_merge_count:%d\r\n\r\n"
 
 			"# Memory\r\n"
@@ -130,6 +136,7 @@ char *db_info(struct nessdb *db)
 			"max_allow_lru_memory_usage:%d(MB)\r\n"
 		,
 			DB_VERSION,
+			arch_bits,
 #ifdef __GNUC__
 			__GNUC__,__GNUC_MINOR__,__GNUC_PATCHLEVEL__,
 #else
@@ -145,6 +152,7 @@ char *db_info(struct nessdb *db)
 			total_lru_cached_count,
 			total_lru_missing_count,
 			total_memtable_count, 
+			total_count,
 			total_bg_merge_count,
 
 			total_lru_memory_usage ,
@@ -157,8 +165,8 @@ char *db_info(struct nessdb *db)
 
 void db_close(struct nessdb *db)
 {
-	llru_free(db->lru);
 	index_free(db->idx);
+	llru_free(db->lru);
 	buffer_free(db->buf);
 	free(db);
 }

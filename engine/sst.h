@@ -15,18 +15,26 @@
 #include "meta.h"
 #include "bloom.h"
 #include "util.h"
+#include "config.h"
+
+struct mutexer{
+	volatile int lsn;
+	pthread_mutex_t mutex;
+};
+
 
 struct sst_block{
-	char key[SKIP_KSIZE];
+	char key[NESSDB_MAX_KEY_SIZE];
 	__be64  offset;
 }__attribute__((packed));
 
 struct sst{
-	char basedir[SST_FLEN];
-	char name[SST_NSIZE];
+	char basedir[FILE_PATH_SIZE];
+	char name[FILE_NAME_SIZE];
 	uint32_t lsn;
 	struct meta *meta;
 	struct bloom *bloom;
+	struct mutexer mutexer;
 };
 
 struct sst *sst_new(const char *basedir);

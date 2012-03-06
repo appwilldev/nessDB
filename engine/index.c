@@ -33,8 +33,6 @@
 #include "bloom.h"
 #include "index.h"
 
-#define DB_DIR "ndbs"
-
 void *_merge_job(void *arg)
 {
 	int lsn;
@@ -68,25 +66,22 @@ merge_out:
 
 struct index *index_new(const char *basedir, const char *name, int max_mtbl_size, int tolog)
 {
-	char dir[INDEX_NSIZE];
-	char dbfile[DB_NSIZE];
+	char dbfile[FILE_PATH_SIZE];
 	struct index *idx = malloc(sizeof(struct index));
 	struct idx_park *park = malloc(sizeof(struct idx_park));
 
-	memset(dir, 0, INDEX_NSIZE);
-	snprintf(dir, INDEX_NSIZE, "%s/%s", basedir, DB_DIR);
-	ensure_dir_exists(dir);
+	ensure_dir_exists(basedir);
 	
 	idx->lsn = 0;
 	idx->bloom_hits = 0;
 	idx->bg_merge_count = 0;
 	idx->max_mtbl = 1;
 	idx->max_mtbl_size = max_mtbl_size;
-	memset(idx->basedir, 0, INDEX_NSIZE);
-	memcpy(idx->basedir, dir, INDEX_NSIZE);
+	memset(idx->basedir, 0, FILE_PATH_SIZE);
+	memcpy(idx->basedir, basedir, FILE_PATH_SIZE);
 
-	memset(idx->name, 0, INDEX_NSIZE);
-	memcpy(idx->name, name, INDEX_NSIZE); 
+	memset(idx->name, 0, FILE_NAME_SIZE);
+	memcpy(idx->name, name, FILE_NAME_SIZE); 
 
 	/* sst */
 	idx->sst = sst_new(idx->basedir);
@@ -125,8 +120,8 @@ struct index *index_new(const char *basedir, const char *name, int max_mtbl_size
 	/* Create new log:0.log */
 	log_next(idx->log, 0);
 
-	memset(dbfile, 0, DB_NSIZE);
-	snprintf(dbfile, DB_NSIZE, "%s/%s.db", idx->basedir, name);
+	memset(dbfile, 0, FILE_PATH_SIZE);
+	snprintf(dbfile, FILE_PATH_SIZE, "%s/%s.db", idx->basedir, name);
 	idx->db_rfd = open(dbfile, LSM_OPEN_FLAGS, 0644);
 
 	/* Detached thread attr */
@@ -166,6 +161,7 @@ int index_add(struct index *idx, struct slice *sk, struct slice *sv)
 
 		pthread_create(&tid, &idx->attr, _merge_job, idx);
 
+		idx->mtbl_rem_count = 0;
 		/* New mtable is born */
 		new_list = skiplist_new(idx->max_mtbl_size);
 		idx->list = new_list;
@@ -173,12 +169,13 @@ int index_add(struct index *idx, struct slice *sk, struct slice *sv)
 		idx->lsn++;
 		log_next(idx->log, idx->lsn);
 	}
-	skiplist_insert(idx->list, sk->data, value_offset, sv == NULL?DEL:ADD);
+	skiplist_insert(idx->list, sk->data, value_offset, sv == NULL ? DEL : ADD);
 	
 	/* Add to Bloomfilter */
 	if (sv) {
 		bloom_add(idx->sst->bloom, sk->data);
-	}
+	} else
+		idx->mtbl_rem_count++;
 
 	return 1;
 }
@@ -274,6 +271,18 @@ int index_get(struct index *idx, struct slice *sk, struct slice *sv)
 
 out_get:
 	return ret;
+}
+
+uint64_t index_allcount(struct index *idx)
+{
+	int i, size;
+	uint64_t c = 0UL;
+	
+	size = idx->sst->meta->size;
+	for (i = 0; i < size; i++)
+		c += idx->sst->meta->nodes[i].count;
+
+	return c;
 }
 
 void index_free(struct index *idx)
