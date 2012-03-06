@@ -8,7 +8,6 @@ endif
 CC = gcc
 CFLAGS =  -c -std=c99 -Wall  $(DEBUG)	
 
-so:CFLAGS += -shared -fPIC
 
 LIB_OBJS = \
 	./engine/meta.o		\
@@ -36,6 +35,8 @@ LIBRARY = libnessdb.a
 DY_LIBRARY = libnessdb.so
 
 all: $(LIBRARY)
+
+so:CFLAGS += -shared -fPIC
 so: $(DY_LIBRARY)
 
 clean:
@@ -50,8 +51,7 @@ cleandb:
 	-rm -rf *.event
 
 $(LIBRARY): $(LIB_OBJS)
-	rm -f $@
-	$(AR) -rs $@ $(LIB_OBJS)
+	$(CC) -pthread  -fPIC -shared $(LIB_OBJS)  -o libnessdb.so
 
 $(DY_LIBRARY):$(LIB_OBJS)
 	$(echo $@)
